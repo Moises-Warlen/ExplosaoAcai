@@ -25,9 +25,11 @@ button{background:#ffc800;color:#2a0a3d;font-weight:700;cursor:pointer}
 <body>
 <div class="ui">
   <h1>Painel de pedidos</h1>
-  <input id="tk" type="password" placeholder="Senha do painel">
-  <button id="go">Ativar</button>
-  <div id="st">Digite a senha e toque em Ativar.</div>
+  <div id="login">
+    <input id="tk" type="password" placeholder="Senha do painel">
+    <button id="go">Ativar</button>
+  </div>
+  <div id="st">Iniciando...</div>
   <h3>Últimos pedidos</h3>
   <div id="hist"></div>
 </div>
@@ -35,15 +37,26 @@ button{background:#ffc800;color:#2a0a3d;font-weight:700;cursor:pointer}
 
 <script>
 var API="https://aged-moon-6bbc.francaexplosaoacai.workers.dev";
-var T=localStorage.getItem("painel_t")||"",busy=false,feitos={},tm=null,ac=null;
+var busy=false,feitos={},tm=null,ac=null,T="";
 
 function $(s){return document.querySelector(s)}
 function st(t,ok){var e=$("#st");e.textContent=t;e.className=ok?"ok":"er"}
 function wait(ms){return new Promise(function(r){setTimeout(r,ms)})}
 
+/* A senha vem do link (parte depois de #t=), guardada só no computador da loja.
+   Assim ela não fica escrita neste arquivo público. */
+(function(){
+  try{
+    var m=location.hash.match(/[#&]t=([^&]+)/);
+    if(m){T=decodeURIComponent(m[1]);localStorage.setItem("painel_t",T)}
+    else T=localStorage.getItem("painel_t")||"";
+  }catch(e){}
+})();
+
 function beep(){
   try{
     ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    if(ac.state==="suspended")ac.resume();
     [0,0.25,0.5].forEach(function(d){
       var o=ac.createOscillator(),g=ac.createGain();
       o.connect(g);g.connect(ac.destination);
@@ -98,16 +111,35 @@ async function poll(){
   busy=false;
 }
 
-$("#go").onclick=function(){
-  T=$("#tk").value.trim()||T;
-  localStorage.setItem("painel_t",T);
-  beep();
+function iniciar(){
   clearInterval(tm);
   poll();
   tm=setInterval(poll,5000);
+  $("#login").style.display="none";
+}
+
+/* Mantém a tela do computador acordada enquanto o painel está aberto */
+async function manterAcordado(){
+  try{if(navigator.wakeLock){await navigator.wakeLock.request("screen")}}catch(e){}
+}
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible")manterAcordado();
+});
+
+$("#go").onclick=function(){
+  T=$("#tk").value.trim()||T;
+  try{localStorage.setItem("painel_t",T)}catch(e){}
+  beep();
+  iniciar();
 };
 
-if(T){$("#tk").value=T}
+/* LIGA SOZINHO quando já tem senha (link com #t= ou salva no computador) */
+if(T){
+  manterAcordado();
+  iniciar();
+}else{
+  st("Digite a senha e toque em Ativar.",0);
+}
 </script>
 </body>
 </html>
